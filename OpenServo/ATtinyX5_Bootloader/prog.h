@@ -27,6 +27,43 @@
 #ifndef _PROG_H_
 #define _PROG_H_ 1
 
+
+// These constants define the page configuration based on the Attiny88 MPU.
+// The the Flash and EEPROM pages that can be written are represented as a
+// contiguous address space with the Flash spanning the lower pages and the
+// EEPROM spanning the upper pages.  It is up to the end user to keep track of
+// which type and size of the page being programmed.  Page and address maps
+// are shown below.
+//
+//  ATtiny88 Flash/EEPROM Map
+//
+//  Page     Address    Type
+//  --------------------------
+//   00     0000-003F   Flash
+//   ..
+//   6F     1BC0-1BFF   Flash
+//   70     1C00-1C3F   Flash (R/O - Bootloader)
+//   ..
+//   7F     1FC0-1FFF   Flash (R/O - Bootloader)
+//   80     2000-203F   EEPROM
+//
+
+#ifdef __AVR_ATtiny88__
+
+// Flash/EEPROM Page Information
+#define FLASH_PAGE_COUNT        (128)// doc8008.pdf pg 191
+#define EEPROM_PAGE_COUNT       (1)  // 64 bytes per page, I have 64 bytes eeprom, 1 page
+#define PROG_PAGE_SIZE          (64) // Flash Size(8192)/FLASH_PAGE_COUNT
+
+// Flash/EEPROM Address Information
+#define PROG_FLASH_START        (0x0000)
+#define PROG_FLASH_BOOTLOADER   (0x1C00)
+#define PROG_FLASH_END          (0x2000)
+#define PROG_EEPROM_START       (0x2000)
+#define PROG_EEPROM_END         (0x2040)
+
+#endif
+
 // These constants define the page configuration based on the Attiny25/45/85 MPU.
 // The the Flash and EEPROM pages that can be written are represented as a
 // contiguous address space with the Flash spanning the lower pages and the
@@ -40,7 +77,7 @@
 //  --------------------------
 //   00     0000-001F   Flash
 //   ..
-//   1F     03E0-03FF   Flash
+//   1F     03E0-03FF   Flash Program
 //   20     0400-041F   Flash (R/O - Bootloader)
 //   ..
 //   3F     07E0-07FF   Flash (R/O - Bootloader)

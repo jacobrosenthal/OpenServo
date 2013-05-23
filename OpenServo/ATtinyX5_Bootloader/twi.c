@@ -31,6 +31,20 @@
 #include "prog.h"
 #include "twi.h"
 
+
+// Device dependant defines
+#if defined(__AVR_ATtiny88__)
+    #define DDR_USI             DDRC
+    #define DD_SDA              DDC4
+    #define DD_SCL              DDC5
+    #define PORT_USI            PORTC
+    #define P_SDA               PC4
+    #define P_SCL               PC5
+    #define PIN_USI             PINC
+    #define PIN_SDA             PINC4
+    #define PIN_SCL             PINC5
+#endif
+
 // Device dependant defines
 #if defined(__AVR_ATtiny25__) | defined(__AVR_ATtiny45__) | defined(__AVR_ATtiny85__)
     #define DDR_USI             DDRB
