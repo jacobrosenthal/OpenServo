@@ -44,8 +44,6 @@
     #define PIN_SDA             PINC4
     #define PIN_SCL             PINC5
 #endif
-
-// Device dependant defines
 #if defined(__AVR_ATtiny25__) | defined(__AVR_ATtiny45__) | defined(__AVR_ATtiny85__)
     #define DDR_USI             DDRB
     #define DD_SDA              DDB0
@@ -85,10 +83,13 @@
 
 // TWI state values.
 static uint8_t twi_write_state;
+
+#if defined(__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny84__) || defined(__AVR_ATtiny85__) 
 static uint8_t twi_overflow_state;
 
 // TWI flag values.
 static uint8_t twi_address_update;
+#endif
 
 // TWI data values.
 static uint16_t twi_address;
@@ -106,6 +107,7 @@ BOOTLOADER_SECTION void twi_init(void)
     // Initialize the TWI data.
     twi_address = 0;
 
+    #if defined(__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny84__) || defined(__AVR_ATtiny85__) 
     // Set the interrupt enable, wire mode and clock settings.  Note: At this
     // time the wire mode must not be set to hold the SCL line low when the 
     // counter overflows. Otherwise, this TWI slave will interfere with other
@@ -118,7 +120,7 @@ BOOTLOADER_SECTION void twi_init(void)
     // Clear the interrupt flags and reset the counter.
     USISR = (1<<USISIF) | (1<<USIOIF) | (1<<USIPF) |        // Clear interrupt flags.
             (0x0<<USICNT0);                                 // USI to sample 8 bits or 16 edge toggles.
-
+    #endif
     // Configure SDA.
     DDR_USI &= ~(1<<DD_SDA);
     PORT_USI &= ~(1<<P_SDA);
@@ -127,8 +129,23 @@ BOOTLOADER_SECTION void twi_init(void)
     DDR_USI |= (1<<DD_SCL);
     PORT_USI |= (1<<P_SCL);
 
+    #ifdef __AVR_ATtiny88__
+    // enable the TWI clock
+    PRR &= ~_BV( PRTWI );
+    TWAR = (TWI_SLAVE_ADDRESS << 1) | _BV( TWGCE );
+        
+    // configure the TWI module
+    TWCR =  _BV( TWEA ) |   // ack when addressed or data received
+        _BV( TWEN ) |   // enable TWI
+        _BV( TWIE );    // enable the TWI interrupt
+
+    // no prescaler necessary, since master mode is never used
+    #endif
+
+    #if defined(__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny84__) || defined(__AVR_ATtiny85__) 
     // Start condition interrupt enable.
     USICR |= (1<<USISIE);
+    #endif
 }
 
 BOOTLOADER_SECTION void twi_deinit(void)
@@ -138,12 +155,122 @@ BOOTLOADER_SECTION void twi_deinit(void)
     PORT_USI &= ~((1<<P_SCL) | (1<<P_SDA));
     DDR_USI &= ~((1<<DD_SCL) | (1<<DD_SDA));
 
+    #if defined(__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny84__) || defined(__AVR_ATtiny85__) 
     // Clear the USI registers.
     USIDR = 0x00;
     USICR = 0x00;
     USISR = 0xF0;
+    #endif
+
+    #ifdef __AVR_ATtiny88__
+    // Clear the USI registers.
+    TWAR = 0x00;
+    TWCR = 0x00;
+    PRR &= ~_BV( PRTWI );
+    #endif
+
 }
 
+#ifdef __AVR_ATtiny88__
+BOOTLOADER_SECTION void twi_check_conditions(void)
+// Checks for TWI start condition.
+{   
+    static char buf[ PARSE_MAX_LEN ];
+    static int ind = 0;
+
+    if(TWCR TWINT ){
+        switch( TW_STATUS ) {
+        case TW_BUS_ERROR:
+
+            TWCR |= _BV( TWSTO );
+            twi_error();
+            break;  // FIXME: error led
+
+        case TW_SR_SLA_ACK: //SLA+W received, ACK returned
+        case TW_SR_GCALL_ACK:   // FIXME? do something different for GCALL?
+
+            twi_write_state = TWI_WRITE_ADDR_HI_BYTE;
+            break;
+
+        case TW_SR_DATA_ACK: //data received, ACK returned
+        case TW_SR_GCALL_DATA_ACK: // FIXME? something different for GCALL?
+            if(TWI_WRITE_ADDR_HI_BYTE){
+
+                //set address
+                twi_address = TWDR;
+
+                // Set the next state.
+                twi_write_state = TWI_WRITE_ADDR_LO_BYTE;
+
+            }else if(TWI_WRITE_ADDR_LO_BYTE){
+
+                // Set the address
+                twi_address = (twi_address << 8) | usi_data;
+
+                // Set the next state.
+                twi_write_state = TWI_WRITE_DATA_BYTE;
+
+                // Mark the bootloader as active.
+                bootloader_active = 1;
+
+                // Check for the special address to exit the bootloader.
+                if (twi_address != 0xffff)
+                {
+                    // Set the twi address.  This will load the corresponding page from
+                    // flash into the programming buffer for reading and writing.
+                    prog_buffer_set_address(twi_address);
+                }
+
+            }else{ 
+
+                prog_buffer_set_byte(TWDR);
+            }
+            break;
+
+        case TW_SR_STOP: //stop or repeated start condition received while selected
+
+            // Check for the special address to exit the bootloader.
+            if (twi_address == 0xffff)
+            {
+                // Set the flag to have the bootloader eixt.
+                bootloader_exit = 1;
+            }
+            else
+            {
+                // Update the programming buffer if needed.
+                prog_buffer_update();
+            }
+            break;
+
+        case TW_ST_SLA_ACK: ///SLA+R received, ACK returned
+        case TW_ST_DATA_ACK: //data transmitted, ACK received
+
+            TWDR = prog_buffer_get_byte();
+            break;
+
+        case TW_ST_DATA_NACK: ///data transmitted, NACK received //arduino transmits nack on last byte..pg151?
+        case TW_ST_LAST_DATA:  //last data byte transmitted, ACK received
+
+            // set TWEA again to respond when addressed
+            TWCR = (TWCR & ~_BV( TWINT )) | _BV( TWEA );
+            break;
+
+        default:    // FIXME: error led
+
+            //dumpbyte(TW_STATUS);
+            twi_error();
+            break;
+
+        }
+
+        // clear the interrupt flag to allow the TWI module to continue
+        TWCR |= _BV( TWINT );
+    }
+}
+#endif
+
+
+#if defined(__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny84__) || defined(__AVR_ATtiny85__) 
 BOOTLOADER_SECTION void twi_check_conditions(void)
 // Checks for TWI start condition.
 {
@@ -198,12 +325,15 @@ BOOTLOADER_SECTION void twi_check_conditions(void)
         }
     }
 }
+#endif
+
 
 
 BOOTLOADER_SECTION void twi_handle_start_condition(void)
 // Handle the TWI start condition.  This is called when the TWI master initiates
 // communication with a TWI slave by asserting the TWI start condition.
 {
+    #if defined(__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny84__) || defined(__AVR_ATtiny85__) 
     // Wait until the "Start Condition" is complete when SCL goes low. If we fail to wait
     // for SCL to go low we may miscount the number of clocks pulses for the data because
     // the transition of SCL could be mistaken as one of the data clock pulses.
@@ -221,6 +351,7 @@ BOOTLOADER_SECTION void twi_handle_start_condition(void)
             (1<<USIWM1) | (1<<USIWM0) |                 // Maintain USI in two-wire mode with clock stretching.
             (1<<USICS1) | (0<<USICS0) | (0<<USICLK) |   // Shift Register Clock Source = External, positive edge
             (0<<USITC);                                 // No toggle of clock pin.
+    #endif
 }
 
 
@@ -229,6 +360,7 @@ BOOTLOADER_SECTION void twi_handle_overflow_condition(void)
 // overflows indicating the TWI master has clocked in/out a databyte or a single
 // ack/nack byte following a databyte transfer.
 {
+    #if defined(__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny84__) || defined(__AVR_ATtiny85__) 
     // Buffer the USI data.
     uint8_t usi_data = USIDR;
 
@@ -386,5 +518,6 @@ BOOTLOADER_SECTION void twi_handle_overflow_condition(void)
 
     // Clear the overflow interrupt flag and release the hold on SCL.
     USISR |= (1<<USIOIF);
+    #endif
 }
 

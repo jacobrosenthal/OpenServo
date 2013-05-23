@@ -28,7 +28,8 @@
 #define _TWI_H_ 1
 
 // Define the TWI address for the bootloader.
-#define TWI_SLAVE_ADDRESS       0x7F
+#define PARSE_MAX_LEN 32
+#define TWI_SLAVE_ADDRESS 119
 
 void twi_init();
 void twi_deinit();
