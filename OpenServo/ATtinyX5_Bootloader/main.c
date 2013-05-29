@@ -28,7 +28,10 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
+#define BOOTSTRAPPER 1
+
 #include "bootloader.h"
+
 #ifdef BOOTSTRAPPER
 #include "prog.h"
 #include "twi.h"

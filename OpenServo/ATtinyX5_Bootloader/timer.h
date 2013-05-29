@@ -27,12 +27,20 @@
 #ifndef _TIMER_H_
 #define _TIMER_H_ 1
 
-#ifdef __AVR_ATtiny84__
+#if defined(__AVR_ATtiny84__) | defined(__AVR_ATtiny88__)
 #define TIFR TIFR0
 #endif
 
 static inline void timer_init(void)
 {
+	
+#ifdef __AVR_ATtiny88__
+	//1M clock/1024 prescale means a 1ms tick and 8 bit counter means 255 ticks to overflow so 4 overflows is 1.0448 seconds
+	TCCR0A = (0<<CTC0) |						// Normal Operation
+	(1<<CS02) | (0<<CS01) | (1<<CS00);	// Use pre/scaled (1024) clock source.
+#endif
+
+#if defined(__AVR_ATtiny25__) | defined(__AVR_ATtiny45__) | defined(__AVR_ATtiny84__) | defined(__AVR_ATtiny85__) 	
     // Configure the Timer Control Register A.
     TCCR0A = (0<<COM0A1) | (0<<COM0A0) |        // OC0A disconnected.
              (0<<COM0B1) | (0<<COM0B0) |        // OC0B disconnected.
@@ -41,14 +49,17 @@ static inline void timer_init(void)
     // Configure the Timer Control Register B.
     TCCR0B = (0<<WGM02) |                       // Normal operation.
              (1<<CS02) | (0<<CS01) | (1<<CS00); // Use pre/scaled (1024) clock source.
+#endif
 }
 
 
 static inline void timer_deinit(void)
 {
     // Clear timer related registers.
+#if defined(__AVR_ATtiny25__) | defined(__AVR_ATtiny45__) | defined(__AVR_ATtiny84__) | defined(__AVR_ATtiny85__) 	
+	TCCR0B = 0;
+#endif
     TCCR0A = 0;
-    TCCR0B = 0;
     TCNT0 = 0;
 
     TIFR = (1<<OCF0A) | (1<<OCF0B) | (1<<TOV0);

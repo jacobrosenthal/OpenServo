@@ -1,40 +1,19 @@
-/*
-    Copyright (c) 2006 Michael P. Thompson <mpthompson@gmail.com>
+/*************************************************************************//**
+ * \file   twi.h
+ * \brief  Low-level TWI function declarations for the ATtiny48.
+ * \author Jon Lindsay (Jonathan.Lindsay@asu.edu)
+ * \date   20090419 - initial version
+ *         20090421 - add TW_STATUS_MASK fix
+ ****************************************************************************/
 
-    Permission is hereby granted, free of charge, to any person 
-    obtaining a copy of this software and associated documentation 
-    files (the "Software"), to deal in the Software without 
-    restriction, including without limitation the rights to use, copy, 
-    modify, merge, publish, distribute, sublicense, and/or sell copies 
-    of the Software, and to permit persons to whom the Software is 
-    furnished to do so, subject to the following conditions:
+#ifndef TWI_H
+#define TWI_H
 
-    The above copyright notice and this permission notice shall be 
-    included in all copies or substantial portions of the Software.
+#include<util/twi.h>
 
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, 
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF 
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND 
-    NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT 
-    HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
-    WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
-    DEALINGS IN THE SOFTWARE.
+#define DEFAULT_TWI_ADDRESS 34
 
-    $Id$
-*/
-
-#ifndef _TWI_H_
-#define _TWI_H_ 1
-
-// Define the TWI address for the bootloader.
-#define PARSE_MAX_LEN 32
-#define TWI_SLAVE_ADDRESS 119
-
-void twi_init();
+void twi_init( void );		///<Set up the TWI module for slave operation
+void twi_check_conditions( void );
 void twi_deinit();
-void twi_check_conditions(void);
-void twi_handle_start_condition(void);
-void twi_handle_overflow_condition(void);
-
-#endif // _TWI_H_
+#endif

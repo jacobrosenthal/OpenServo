@@ -55,6 +55,10 @@
 #define EEARH _SFR_IO8(0x1F)
 #endif
 
+#ifdef __AVR_ATtiny88__
+#define SPMEN SELFPRGEN
+#endif
+
 // Programming state flags.
 static uint8_t prog_update_flag;
 
